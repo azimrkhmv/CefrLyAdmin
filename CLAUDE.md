@@ -47,9 +47,14 @@ to `/`, which here IS the admin area — that would loop. Never reintroduce it.
 `lib/auth`, `lib/supabase`, `lib/storage`, `lib/bands`, `lib/plans`,
 `lib/sessionExpiry`, `types/*`, `components/{Cat,EmptyState,RouteFallback,
 Skeleton,TabStrip,icons}`, `index.css`, `fonts.css`, `public/fonts/*`.
-**Change one of these here and you must change it in `../cefrly` too.** The
-`types/*` files in particular mirror the exam schemas and the edge function
-validators; drift there causes silent save failures.
+**Change one of these here and you must change it in `../cefrly` too.** Run
+`npm run check:shared` after touching any of them — it diffs this repo's copies
+against the student app (normalising line endings, since git rewrites those) and
+exits non-zero on drift. Add any new shared file to the SHARED list in
+scripts/check-shared.mjs.
+Drift is NOT silent: the admin-* edge functions re-validate every payload and
+write nothing on failure, so a stale type surfaces as a visible validation error
+rather than corrupt data. The check exists to catch it before that.
 
 Owned solely by this repo: `pages/admin/*`, `components/admin/*`,
 `lib/adminApi`, `lib/testDraft`, `lib/listeningDraft`, `lib/sampleDraft`,
