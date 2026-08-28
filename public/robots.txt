@@ -1,0 +1,3 @@
+# Internal admin tool. Nothing here should ever be indexed.
+User-agent: *
+Disallow: /

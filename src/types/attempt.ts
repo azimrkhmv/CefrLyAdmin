@@ -1,0 +1,98 @@
+import type {
+  AudioAsset,
+  Band,
+  CefrLevel,
+  Explanation,
+  ItemType,
+  ListeningPart,
+  Skill,
+  TestScope,
+} from './test'
+import type { TestAccess } from './plan'
+
+/** Row shape returned when listing published tests (metadata only, never content). */
+export interface TestCatalogEntry {
+  id: string
+  title: string
+  skill: string
+  target_levels: CefrLevel[]
+  duration_sec: number
+  /** Missing on rows read before migration 0010 → treat as 'full'. */
+  scope?: TestScope
+  part_number?: number | null
+  /** 'free' = open to everyone; 'premium' = paid plans. Missing → treat premium. */
+  access?: TestAccess
+}
+
+/** Per-item grading result, built server-side by the submit-test edge function. */
+export interface ItemResult {
+  id: string
+  partNumber: number
+  type: ItemType
+  prompt?: string
+  correct: boolean
+  /** Raw value the user submitted (option key / typed word / tfng value), or null. */
+  userAnswer: string | null
+  /** Human-readable version of the user's answer. */
+  userAnswerLabel: string | null
+  /** Human-readable correct answer. */
+  correctAnswerLabel: string
+  explanation: Explanation
+}
+
+/** What the submit-test function stores in attempts.result. */
+export interface StoredAttemptResult {
+  testId: string
+  testTitle: string
+  /** Absent on attempts stored before Phase 3; treat missing as 'reading'. */
+  skill?: Skill
+  /** Absent before part tests; treat missing as 'full'. */
+  scope?: TestScope
+  partNumber?: number | null
+  rawScore: number
+  total: number
+  /** null for part-test attempts — CEFR bands only exist for the full /35 paper. */
+  band: Band | null
+  submittedAt: string
+  items: ItemResult[]
+}
+
+export interface AttemptResult extends StoredAttemptResult {
+  attemptId: string
+}
+
+/** The post-submit study payload from the review-attempt edge function: the
+ *  FULL test content (answer keys + transcripts — safe only AFTER submission,
+ *  and only for the attempt's owner) alongside the student's graded answers. */
+export interface AttemptReview {
+  attemptId: string
+  testId: string
+  testTitle: string
+  skill: Skill
+  submittedAt: string | null
+  rawScore: number
+  total: number
+  band: Band | null
+  audioMode: 'per_part' | 'single' | null
+  singleAudio: AudioAsset | null
+  /** Full parts including per-item answers and server-side transcripts. */
+  parts: ListeningPart[]
+  items: ItemResult[]
+}
+
+/** One row on the "My results" dashboard. */
+export interface AttemptSummary {
+  id: string
+  testId: string | null
+  testTitle: string
+  /** Reading or Listening. Legacy rows (pre-Phase 3) default to 'reading'. */
+  skill: Skill
+  /** 'part' = a single-part drill; its score is out of that part's count and
+   *  it carries no band. Legacy rows default to 'full'. */
+  scope: TestScope
+  partNumber: number | null
+  rawScore: number
+  total: number
+  band: Band | null
+  createdAt: string
+}
