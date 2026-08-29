@@ -6,6 +6,8 @@ import {
   adminSetUserPlan,
   adminSetUserRole,
   type AdminAttemptRow,
+  adminResolveRecheck,
+  type AdminRecheckRow,
   type AdminSpeakingAttemptRow,
 } from '../../lib/adminApi'
 import { useAuth } from '../../lib/auth'
@@ -123,6 +125,7 @@ export function AdminUserDetailPage() {
 
   const { user, onboarding, attempts } = data
   const speakingAttempts = data.speakingAttempts ?? []
+  const rechecks = data.rechecks ?? []
   const name = user.name ?? [user.first_name, user.last_name].filter(Boolean).join(' ')
   // The API refuses to touch super admins or your own row; hide the controls to match.
   const canChangeRole =
@@ -434,7 +437,58 @@ export function AdminUserDetailPage() {
         )}
       </section>
 
-      <SpeakingHistory attempts={speakingAttempts} />
+      <SpeakingHistory attempts={speakingAttempts} rechecks={rechecks} />
+    </div>
+  )
+}
+
+/** The student's complaint, and your reply. Reading the transcript above is the
+ *  whole job — this is just where you write back. */
+function RecheckPanel({ recheck }: { recheck: AdminRecheckRow }) {
+  const queryClient = useQueryClient()
+  const [note, setNote] = useState(recheck.admin_note ?? '')
+  const resolve = useMutation({
+    mutationFn: (status: 'reviewed' | 'rejected') =>
+      adminResolveRecheck(recheck.id, status, note),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-user'] }),
+  })
+
+  return (
+    <div className="rounded-xl border border-sun bg-sun-soft/40 p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-sun-ink">
+        Recheck requested · {formatDateTime(recheck.created_at)}
+      </p>
+      <p className="mt-1.5 text-sm text-ink">“{recheck.reason}”</p>
+
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={3}
+        placeholder="Your reply to the student…"
+        className="mt-3 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => resolve.mutate('reviewed')}
+          disabled={resolve.isPending}
+          className="rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white hover:bg-brand-deep disabled:opacity-60"
+        >
+          Send reply
+        </button>
+        <button
+          type="button"
+          onClick={() => resolve.mutate('rejected')}
+          disabled={resolve.isPending}
+          className="rounded-xl border border-line bg-white px-4 py-2 text-xs font-bold text-ink hover:border-ink-faint disabled:opacity-60"
+        >
+          Close without change
+        </button>
+        <span className="text-xs text-ink-soft">Status: {recheck.status}</span>
+      </div>
+      {resolve.isError && (
+        <p className="mt-2 text-xs text-rose-700">{(resolve.error as Error).message}</p>
+      )}
     </div>
   )
 }
@@ -450,8 +504,15 @@ const PART_LABEL: Record<string, string> = {
  *  `attempts` row: it is marked out of 75 by the official rating table, and its
  *  value to you is the FEEDBACK — the transcript of what the student actually
  *  said and what the AI told them — not just a number. */
-function SpeakingHistory({ attempts }: { attempts: AdminSpeakingAttemptRow[] }) {
+function SpeakingHistory({
+  attempts,
+  rechecks,
+}: {
+  attempts: AdminSpeakingAttemptRow[]
+  rechecks: AdminRecheckRow[]
+}) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const recheckFor = (attemptId: string) => rechecks.find((r) => r.attempt_id === attemptId)
 
   return (
     <section className="space-y-3">
@@ -493,6 +554,11 @@ function SpeakingHistory({ attempts }: { attempts: AdminSpeakingAttemptRow[] }) 
                     <span className="text-xs font-bold text-brand">checking…</span>
                   ) : (
                     <span className="text-xs font-bold text-rose-700">failed</span>
+                  )}
+                  {recheckFor(a.id)?.status === 'open' && (
+                    <span className="rounded-full bg-sun-soft px-2.5 py-0.5 text-xs font-bold text-sun-ink">
+                      recheck asked
+                    </span>
                   )}
                   <span className="text-xs font-bold text-brand">
                     {openId === a.id ? 'Hide' : 'View'}
@@ -552,6 +618,8 @@ function SpeakingHistory({ attempts }: { attempts: AdminSpeakingAttemptRow[] }) 
                       )}
                     </div>
                   ))}
+
+                  {recheckFor(a.id) && <RecheckPanel recheck={recheckFor(a.id)!} />}
 
                   <p className="text-xs text-ink-faint">
                     The recording itself was deleted after grading — the transcript is the record.

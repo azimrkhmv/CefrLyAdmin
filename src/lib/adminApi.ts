@@ -202,12 +202,25 @@ export interface AdminUserOnboarding {
   source: string | null
 }
 
+/** A student saying "this AI score is wrong". */
+export interface AdminRecheckRow {
+  id: string
+  attempt_id: string
+  reason: string
+  status: 'open' | 'reviewed' | 'rejected'
+  admin_note: string | null
+  created_at: string
+  reviewed_at: string | null
+}
+
 export interface AdminUserDetail {
   user: AdminUserRow
   onboarding: AdminUserOnboarding
   attempts: AdminAttemptRow[]
   /** Speaking history — absent on older function versions, hence optional. */
   speakingAttempts?: AdminSpeakingAttemptRow[]
+  /** Recheck complaints raised against those attempts. */
+  rechecks?: AdminRecheckRow[]
 }
 
 async function invokeUsers<T>(body: Record<string, unknown>): Promise<T> {
@@ -254,6 +267,16 @@ export function adminSetUserPlan(
   note?: string,
 ): Promise<{ ok: true; userId: string; plan: PlanId; plan_expires_at: string | null }> {
   return invokeUsers({ action: 'setUserPlan', userId, plan, expiresAt, note })
+}
+
+/** Reply to a student's "this score is wrong". Any admin may answer — support,
+ *  not a privileged action. */
+export function adminResolveRecheck(
+  recheckId: string,
+  status: 'open' | 'reviewed' | 'rejected',
+  adminNote: string,
+): Promise<{ ok: true }> {
+  return invokeUsers({ action: 'resolveRecheck', recheckId, status, adminNote })
 }
 
 // --- admin-samples (Writing/Speaking model-answer library) -----------------
