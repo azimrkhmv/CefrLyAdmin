@@ -130,6 +130,51 @@ export interface AdminUserRow {
   best_band: Band | null
   best_score: number | null
   best_total: number | null
+  // --- Speaking. Its own table, and marked out of 75 by the official rating
+  // table rather than out of 35, so it never merges with the fields above.
+  /** Graded speaking checks (drills included). */
+  speaking_count: number
+  /** Last and best band come from FULL papers only — a drill's band is an
+   *  estimate from one part and would flatter the record. */
+  speaking_last_band: Band | null
+  speaking_last_rating: number | null
+  speaking_best_rating: number | null
+  speaking_last_at: string | null
+}
+
+/** One graded speaking attempt, with the whole analysis the student sees. */
+export interface AdminSpeakingAttemptRow {
+  id: string
+  test_id: string
+  test_title: string
+  scope: 'full' | 'part'
+  part_type: string | null
+  status: 'grading' | 'done' | 'failed'
+  error_message: string | null
+  raw_score: number | null
+  rating: number | null
+  band: Band | null
+  result: {
+    blocks?: { key: string; label: string; max: number; score: number; reason: string }[]
+    answers?: {
+      questionIndex: number
+      questionText: string
+      durationSec: number
+      transcript: string
+      wordsPerMinute: number
+      fillerCount: number
+      pronunciation: string
+      fluency: string
+      errors: { quote: string; type: string; fix: string }[]
+      strengths: { quote: string; why: string }[]
+      improved: string
+    }[]
+    summary?: string
+    fixFirst?: string
+    model?: string
+  } | null
+  created_at: string
+  graded_at: string | null
 }
 
 export interface AdminAttemptRow {
@@ -161,6 +206,8 @@ export interface AdminUserDetail {
   user: AdminUserRow
   onboarding: AdminUserOnboarding
   attempts: AdminAttemptRow[]
+  /** Speaking history — absent on older function versions, hence optional. */
+  speakingAttempts?: AdminSpeakingAttemptRow[]
 }
 
 async function invokeUsers<T>(body: Record<string, unknown>): Promise<T> {

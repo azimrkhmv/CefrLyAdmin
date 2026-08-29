@@ -6,6 +6,7 @@ import {
   adminSetUserPlan,
   adminSetUserRole,
   type AdminAttemptRow,
+  type AdminSpeakingAttemptRow,
 } from '../../lib/adminApi'
 import { useAuth } from '../../lib/auth'
 import type { PlanId } from '../../types/plan'
@@ -121,6 +122,7 @@ export function AdminUserDetailPage() {
   if (!data) return null
 
   const { user, onboarding, attempts } = data
+  const speakingAttempts = data.speakingAttempts ?? []
   const name = user.name ?? [user.first_name, user.last_name].filter(Boolean).join(' ')
   // The API refuses to touch super admins or your own row; hide the controls to match.
   const canChangeRole =
@@ -431,6 +433,135 @@ export function AdminUserDetailPage() {
           </div>
         )}
       </section>
+
+      <SpeakingHistory attempts={speakingAttempts} />
     </div>
+  )
+}
+
+const PART_LABEL: Record<string, string> = {
+  part_1_1: 'Part 1.1',
+  part_1_2: 'Part 1.2',
+  part_2: 'Part 2',
+  part_3: 'Part 3',
+}
+
+/** Speaking history. Separate from the table above because speaking is not an
+ *  `attempts` row: it is marked out of 75 by the official rating table, and its
+ *  value to you is the FEEDBACK — the transcript of what the student actually
+ *  said and what the AI told them — not just a number. */
+function SpeakingHistory({ attempts }: { attempts: AdminSpeakingAttemptRow[] }) {
+  const [openId, setOpenId] = useState<string | null>(null)
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-extrabold text-heading">
+        Speaking checks <span className="font-bold text-ink-soft">· newest first</span>
+      </h2>
+      {attempts.length === 0 ? (
+        <p className="rounded-2xl border border-line bg-white px-4 py-10 text-center text-sm text-ink-soft shadow-card">
+          No speaking checks yet.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {attempts.map((a) => (
+            <div key={a.id} className="rounded-2xl border border-line bg-white shadow-card">
+              <button
+                type="button"
+                onClick={() => setOpenId(openId === a.id ? null : a.id)}
+                className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-bold text-ink">{a.test_title}</span>
+                  <span className="text-xs text-ink-soft">
+                    {a.scope === 'full' ? 'Full mock' : (a.part_type && PART_LABEL[a.part_type]) || 'Part practice'}
+                    {' · '}
+                    {formatDateTime(a.created_at)}
+                  </span>
+                </span>
+                <span className="flex items-center gap-2.5">
+                  {a.status === 'done' ? (
+                    <>
+                      <span className="tabular-nums text-sm font-bold text-ink">{a.rating}/75</span>
+                      {a.band ? (
+                        <BandPill band={a.band} />
+                      ) : (
+                        <span className="text-xs text-ink-faint">estimate</span>
+                      )}
+                    </>
+                  ) : a.status === 'grading' ? (
+                    <span className="text-xs font-bold text-brand">checking…</span>
+                  ) : (
+                    <span className="text-xs font-bold text-rose-700">failed</span>
+                  )}
+                  <span className="text-xs font-bold text-brand">
+                    {openId === a.id ? 'Hide' : 'View'}
+                  </span>
+                </span>
+              </button>
+
+              {openId === a.id && (
+                <div className="space-y-4 border-t border-line px-4 py-4">
+                  {a.status !== 'done' && (
+                    <p className="text-sm text-ink-soft">
+                      {a.error_message ?? 'This check has not finished.'}
+                    </p>
+                  )}
+
+                  {a.result?.fixFirst && (
+                    <p className="rounded-xl bg-sun-soft px-4 py-3 text-sm font-bold text-heading">
+                      Fix first: {a.result.fixFirst}
+                    </p>
+                  )}
+
+                  {!!a.result?.blocks?.length && (
+                    <div className="flex flex-wrap gap-2">
+                      {a.result.blocks.map((b) => (
+                        <span
+                          key={b.key}
+                          className="tabular-nums rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand"
+                        >
+                          {b.label} {b.score}/{b.max}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {a.result?.summary && <p className="text-sm text-ink">{a.result.summary}</p>}
+
+                  {a.result?.answers?.map((ans, i) => (
+                    <div key={ans.questionIndex} className="rounded-xl border border-line p-4">
+                      <p className="text-sm font-bold text-ink">
+                        Q{i + 1}. {ans.questionText}
+                      </p>
+                      <p className="tabular-nums mt-1 text-xs text-ink-soft">
+                        {Math.round(ans.durationSec)}s · {ans.wordsPerMinute} wpm ·{' '}
+                        {ans.fillerCount} fillers
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-ink-soft">
+                        {ans.transcript || <em>Nothing recorded.</em>}
+                      </p>
+                      {ans.errors.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-xs text-rose-800">
+                          {ans.errors.map((e, k) => (
+                            <li key={k}>
+                              <span className="line-through">{e.quote}</span> → {e.fix}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+
+                  <p className="text-xs text-ink-faint">
+                    The recording itself was deleted after grading — the transcript is the record.
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

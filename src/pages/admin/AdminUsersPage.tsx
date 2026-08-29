@@ -127,6 +127,7 @@ export function AdminUsersPage() {
                 <th className="px-4 py-3">Attempts</th>
                 <th className="px-4 py-3">Last band</th>
                 <th className="px-4 py-3">Best</th>
+                <th className="px-4 py-3">Speaking</th>
                 <th className="px-4 py-3">Last active</th>
                 <th className="px-4 py-3">Joined</th>
               </tr>
@@ -178,6 +179,24 @@ export function AdminUsersPage() {
                       {user.best_band ? (
                         <span className="tabular-nums text-ink-soft">
                           {user.best_score}/{user.best_total}
+                        </span>
+                      ) : (
+                        <span className="text-ink-faint">—</span>
+                      )}
+                    </td>
+                    {/* Speaking is marked out of 75, not out of 35, so it gets
+                        its own column instead of muddling the two scales. */}
+                    <td className="px-4 py-3">
+                      {user.speaking_last_band ? (
+                        <div className="flex items-center gap-2">
+                          <BandPill band={user.speaking_last_band} />
+                          <span className="tabular-nums text-xs text-ink-soft">
+                            {user.speaking_last_rating}/75
+                          </span>
+                        </div>
+                      ) : user.speaking_count > 0 ? (
+                        <span className="text-xs text-ink-soft">
+                          {user.speaking_count} drill{user.speaking_count > 1 ? 's' : ''}
                         </span>
                       ) : (
                         <span className="text-ink-faint">—</span>
