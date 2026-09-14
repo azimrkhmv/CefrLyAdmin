@@ -35,10 +35,16 @@ rewriting a single link. `/` and `/admin` redirect to `/admin/tests`; unknown
 paths inside the shell redirect there too.
 
 ## Auth (differs from the student app on purpose)
-`/login` is email + password ONLY — no sign-up, no Google OAuth (owner's call
-2026-08-28). Accounts are still created in the student app and promoted by a
-super admin. If an account has no password (created via Google), set one in
-Supabase → Authentication → Users.
+`/login` is PHONE (+998) + password ONLY — no sign-up (owner's call). Since
+2026-09-14 every Cefrly account is created in the student app through the
+Telegram bot (@CefrLy_bot); email accounts no longer exist and public sign-up is
+disabled in Supabase. The login maps the phone to the account's synthetic auth
+address `<998XXXXXXXXX>@phone.cefrly.app` in `src/lib/phone.ts` — keep that in
+lockstep with `../cefrly/src/lib/phoneAuth.ts` and the telegram-auth function.
+Admins are promoted by a super admin (the only one on 2026-09-14:
++998 90 508 39 95). Forgot password → @CefrLy_bot, 📱 Send my number,
+🔑 Get a new password. The user list/detail show phone, father's name and whether
+Telegram is linked (admin-users returns phone, father_name, telegram_linked).
 A signed-in NON-admin gets an explicit dead end (`NotAuthorized` in
 AdminRoute.tsx) with a sign-out button. The student app redirected these users
 to `/`, which here IS the admin area — that would loop. Never reintroduce it.
@@ -67,3 +73,21 @@ Owned solely by this repo: `pages/admin/*`, `components/admin/*`,
   the app. Use `npm run build && npm run preview`.
 - Admin pages still use native `window.confirm`. Acceptable here; the student
   app's ConfirmDialog rule applies to student surfaces only.
+
+## ⚠️ LISTENING AUDIO: THE TWO-LISTEN RULE (added 2026-09-10)
+The exam plays every recording TWICE, and `playLimit` alone cannot say so — the
+official papers ship each part ALREADY RECORDED TWICE, so those tests are
+`playLimit 1`. `AudioAsset.repeatsIncluded` (types/test.ts, mirrored from the
+student repo) declares that, and the rule is
+`playLimit * (repeatsIncluded ? 2 : 1) === 2`. Enforced in
+`src/lib/listeningValidation.ts` AND in the student repo's
+`supabase/functions/admin-tests/validate-listening.ts`, which is the source of
+truth and where the tests live (`node --test .../validate-listening.test.ts`
+over there). CHANGE BOTH OR THE FORM AND THE SERVER DISAGREE — note that
+listeningValidation.ts is NOT on the check:shared list, so nothing warns you.
+`listeningDraft.ts` defaults changed: a single section recording now starts at
+`playLimit 1 + repeatsIncluded` (what every real Cefrly paper is — the old
+`playLimit 2` default would have given FOUR listens), a per-part recording at
+`playLimit 2`. AudioUploadField carries the checkbox (ticking it forces
+playLimit 1, unticking it forces 2) plus a live readout of how many times each
+question would be heard, so a wrong pairing is visible while authoring.

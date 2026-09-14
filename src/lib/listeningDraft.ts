@@ -19,6 +19,10 @@ import {
 export interface AudioDraft {
   assetPath: string
   playLimit: number
+  /** The uploaded file already contains the exam's second play of every
+   *  question. See AudioAsset in types/test.ts — with this on, playLimit must
+   *  be 1, and the validator rejects any pairing that is not two listens. */
+  repeatsIncluded: boolean
   previewSec: number
 }
 export interface ImageDraft {
@@ -53,7 +57,7 @@ export interface ListeningDraft {
 const LETTERS = 'ABCDEFGHIJ'.split('')
 const qid = (n: number) => `q${n}`
 
-const emptyAudio = (): AudioDraft => ({ assetPath: '', playLimit: 2, previewSec: 20 })
+const emptyAudio = (): AudioDraft => ({ assetPath: '', playLimit: 2, repeatsIncluded: false, previewSec: 20 })
 
 const emptyGap = (id: string): GapItemDraft => ({
   id,
@@ -84,7 +88,7 @@ export function emptyListeningDraft(): ListeningDraft {
     slug: '',
     durationSec: 2400,
     audioMode: 'per_part',
-    singleAudio: { assetPath: '', playLimit: 2, previewSec: 30 },
+    singleAudio: { assetPath: '', playLimit: 1, repeatsIncluded: true, previewSec: 0 },
     part1: {
       instructions:
         'You will hear eight short recordings. For each one, choose the best reply (A, B or C). You will hear each recording twice.',
@@ -178,6 +182,7 @@ const toMcq = (d: McqItemDraft, number: number, withPrompt: boolean): McqItem =>
 const audioObj = (a: AudioDraft) => ({
   assetPath: a.assetPath,
   playLimit: Number(a.playLimit) || 2,
+  repeatsIncluded: !!a.repeatsIncluded,
   previewSec: Number(a.previewSec) || 0,
 })
 
@@ -279,8 +284,17 @@ const mcqToDraft = (item: McqItem): McqItemDraft => ({
   answer: item.answer,
   explanation: { ...item.explanation },
 })
-const audioToDraft = (a: { assetPath: string; playLimit: number; previewSec: number } | undefined): AudioDraft =>
-  a ? { assetPath: a.assetPath, playLimit: a.playLimit, previewSec: a.previewSec } : emptyAudio()
+const audioToDraft = (
+  a: { assetPath: string; playLimit: number; repeatsIncluded?: boolean; previewSec: number } | undefined,
+): AudioDraft =>
+  a
+    ? {
+        assetPath: a.assetPath,
+        playLimit: a.playLimit,
+        repeatsIncluded: !!a.repeatsIncluded,
+        previewSec: a.previewSec,
+      }
+    : emptyAudio()
 
 /** Prefill the listening form from stored schema-v2 content (edit mode). */
 export function contentToListeningDraft(content: ListeningTest, slug: string): ListeningDraft {

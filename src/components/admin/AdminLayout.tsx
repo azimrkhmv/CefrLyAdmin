@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 import { RouteFallback } from '../RouteFallback'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
+import { accountLabel } from '../../lib/phone'
 
 const STUDENT_URL = import.meta.env.VITE_STUDENT_URL ?? 'https://cefrly.vercel.app'
 
@@ -34,6 +35,9 @@ export function AdminLayout() {
             <NavLink to="/admin/users" className={navLinkClass}>
               Users
             </NavLink>
+            <NavLink to="/admin/alerts" className={navLinkClass}>
+              Alerts
+            </NavLink>
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             {/* The student app is a separate deployment now, so this is an
@@ -46,7 +50,7 @@ export function AdminLayout() {
             >
               Student site
             </a>
-            <span className="hidden text-ink-soft md:inline">{session?.user.email}</span>
+            <span className="hidden text-ink-soft md:inline">{accountLabel(null, session?.user.email)}</span>
             <button
               onClick={() => supabase.auth.signOut()}
               className="rounded-xl border border-line bg-white px-4 py-2 text-sm font-bold text-ink transition-colors hover:border-ink-faint"

@@ -7,10 +7,13 @@ import {
   adminSetUserRole,
   type AdminAttemptRow,
   adminResolveRecheck,
+  adminGetWritingAttempt,
   type AdminRecheckRow,
   type AdminSpeakingAttemptRow,
+  type AdminWritingAttemptRow,
 } from '../../lib/adminApi'
 import { useAuth } from '../../lib/auth'
+import { accountLabel } from '../../lib/phone'
 import type { PlanId } from '../../types/plan'
 import {
   BandPill,
@@ -139,9 +142,9 @@ export function AdminUserDetailPage() {
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-heading">{name || user.email}</h1>
+          <h1 className="text-2xl font-extrabold text-heading">{name || accountLabel(user.phone, user.email)}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
-            <span>{user.email}</span>
+            <span className="tabular-nums">{accountLabel(user.phone, user.email)}</span>
             <RoleChip role={user.role} />
             {user.id === session?.user.id && <span className="text-xs">(you)</span>}
           </p>
@@ -159,7 +162,7 @@ export function AdminUserDetailPage() {
             ) : (
               <button
                 onClick={() => {
-                  if (window.confirm(`Remove admin access for ${user.email}?`)) {
+                  if (window.confirm(`Remove admin access for ${name || accountLabel(user.phone, user.email)}?`)) {
                     roleMutation.mutate('student')
                   }
                 }}
@@ -332,6 +335,9 @@ export function AdminUserDetailPage() {
 
         <Card title="Account">
           <dl className="space-y-3">
+            <Field label="Phone" value={<span className="tabular-nums">{user.phone ? accountLabel(user.phone, null) : '—'}</span>} />
+            <Field label="Father's name" value={user.father_name ?? '—'} />
+            <Field label="Telegram" value={user.telegram_linked ? 'Linked (@CefrLy_bot)' : 'Not linked'} />
             <Field label="Joined" value={formatDay(user.created_at)} />
             <Field label="Last sign-in" value={relativeDay(user.last_sign_in_at)} />
             <Field
@@ -438,6 +444,214 @@ export function AdminUserDetailPage() {
       </section>
 
       <SpeakingHistory attempts={speakingAttempts} rechecks={rechecks} />
+      <WritingHistory attempts={data.writingAttempts ?? []} />
+    </div>
+  )
+}
+
+const WRITING_TASK_LABEL: Record<string, string> = {
+  task_1_1: 'Task 1.1 · informal email',
+  task_1_2: 'Task 1.2 · formal email',
+  part_2: 'Part 2 · forum post',
+}
+
+const WRITING_CRITERION_LABEL: Record<string, string> = {
+  task_achievement: 'Task',
+  grammar: 'Grammar',
+  vocabulary: 'Vocabulary',
+  coherence: 'Coherence',
+}
+
+/** Writing history. Like speaking it is not an `attempts` row and is marked out
+ *  of 75 — but unlike speaking WE STILL HAVE WHAT WAS MARKED, so opening one
+ *  shows the student's own script beside the corrections.
+ *
+ *  The row is fetched on expand: the list deliberately carries no `result` or
+ *  `answers`, because a marked paper holds every correction and every essay and
+ *  nobody needs all of them to read a date. */
+function WritingHistory({ attempts }: { attempts: AdminWritingAttemptRow[] }) {
+  const [openId, setOpenId] = useState<string | null>(null)
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-extrabold text-heading">
+        Writing checks <span className="font-bold text-ink-soft">· newest first</span>
+      </h2>
+      {attempts.length === 0 ? (
+        <p className="rounded-2xl border border-line bg-white px-4 py-10 text-center text-sm text-ink-soft shadow-card">
+          No writing checks yet.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {attempts.map((a) => (
+            <div key={a.id} className="rounded-2xl border border-line bg-white shadow-card">
+              <button
+                type="button"
+                onClick={() => setOpenId(openId === a.id ? null : a.id)}
+                className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-bold text-ink">{a.test_title}</span>
+                  <span className="text-xs text-ink-soft">
+                    {a.scope === 'full'
+                      ? 'Full paper'
+                      : (a.task_type && WRITING_TASK_LABEL[a.task_type]) || 'Task practice'}
+                    {' · '}
+                    {formatDateTime(a.created_at)}
+                  </span>
+                </span>
+                <span className="flex items-center gap-2.5">
+                  {a.status === 'done' ? (
+                    <>
+                      <span className="tabular-nums text-sm font-bold text-ink">{a.rating}/75</span>
+                      {a.band ? (
+                        <BandPill band={a.band} />
+                      ) : (
+                        <span className="text-xs text-ink-faint">estimate</span>
+                      )}
+                    </>
+                  ) : a.status === 'grading' ? (
+                    <span className="text-xs font-bold text-brand">checking…</span>
+                  ) : (
+                    <span className="text-xs font-bold text-rose-700">failed</span>
+                  )}
+                  <span className="text-xs font-bold text-brand">
+                    {openId === a.id ? 'Hide' : 'View'}
+                  </span>
+                </span>
+              </button>
+
+              {openId === a.id && <WritingAttemptDetail attempt={a} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function WritingAttemptDetail({ attempt }: { attempt: AdminWritingAttemptRow }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin-writing-attempt', attempt.id],
+    queryFn: () => adminGetWritingAttempt(attempt.id),
+    staleTime: 60_000,
+  })
+
+  if (attempt.status !== 'done') {
+    return (
+      <div className="border-t border-line px-4 py-4 text-sm text-ink-soft">
+        {attempt.error_message ?? 'This check has not finished.'}
+      </div>
+    )
+  }
+  if (isLoading) {
+    return <div className="border-t border-line px-4 py-4 text-sm text-ink-soft">Loading the paper…</div>
+  }
+  if (error || !data) {
+    return (
+      <div className="border-t border-line px-4 py-4 text-sm text-rose-700">
+        {error instanceof Error ? error.message : 'Could not load this paper.'}
+      </div>
+    )
+  }
+
+  // deno-style loose shapes: the row comes back as stored, so read defensively.
+  const result = (data.attempt.result ?? {}) as {
+    summary?: string
+    fixFirst?: string
+    model?: string
+    tasks?: {
+      taskId: string
+      taskLabel: string
+      band: number
+      wordCount: number
+      targetWords: number
+      underlengthCapped?: boolean
+      zeroMark?: string | null
+      comment?: string
+      criteria?: Record<string, number>
+      corrections?: { quote: string; suggestion: string; type: string; note?: string }[]
+    }[]
+  }
+  const answers = data.attempt.answers ?? []
+  const textFor = (taskId: string) => answers.find((x) => x.taskId === taskId)?.text ?? ''
+
+  return (
+    <div className="space-y-4 border-t border-line px-4 py-4">
+      {result.fixFirst && (
+        <p className="rounded-xl bg-sun-soft px-4 py-3 text-sm font-bold text-heading">
+          Fix first: {result.fixFirst}
+        </p>
+      )}
+      {result.summary && <p className="text-sm text-ink">{result.summary}</p>}
+
+      {result.tasks?.map((t) => (
+        <div key={t.taskId} className="rounded-xl border border-line p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold text-ink">{t.taskLabel}</p>
+            <span className="tabular-nums text-sm font-bold text-brand">{t.band}/9</span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {Object.entries(t.criteria ?? {}).map(([key, value]) => (
+              <span
+                key={key}
+                className="tabular-nums rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand"
+              >
+                {WRITING_CRITERION_LABEL[key] ?? key} {value}
+              </span>
+            ))}
+            <span className="tabular-nums rounded-full bg-page px-3 py-1 text-xs font-bold text-ink-soft">
+              {t.wordCount} words / {t.targetWords} asked
+            </span>
+            {t.underlengthCapped && (
+              <span className="rounded-full bg-sun-soft px-3 py-1 text-xs font-bold text-sun-ink">
+                capped for length
+              </span>
+            )}
+            {t.zeroMark && (
+              <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-800">
+                zeroed: {t.zeroMark}
+              </span>
+            )}
+          </div>
+
+          {t.comment && <p className="mt-3 text-sm text-ink-soft">{t.comment}</p>}
+
+          {textFor(t.taskId) && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-bold text-brand">
+                What the student wrote
+              </summary>
+              <p className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-xl bg-page p-3 text-sm text-ink">
+                {textFor(t.taskId)}
+              </p>
+            </details>
+          )}
+
+          {!!t.corrections?.length && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-bold text-brand">
+                {t.corrections.length} correction{t.corrections.length > 1 ? 's' : ''}
+              </summary>
+              <ul className="mt-2 space-y-1.5">
+                {t.corrections.map((c, i) => (
+                  <li key={i} className="text-sm">
+                    <span className="text-rose-700 line-through">{c.quote}</span>
+                    {' → '}
+                    <span className="font-bold text-ink">{c.suggestion}</span>
+                    {c.note && <span className="text-ink-soft"> — {c.note}</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      ))}
+
+      {result.model && (
+        <p className="text-xs text-ink-soft">Marked by {result.model}.</p>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
+import { accountLabel } from '../../lib/phone'
 
 // The UI-side gate for the whole app. The real enforcement is server-side:
 // every admin action goes through edge functions that re-check profiles.role,
@@ -20,7 +21,7 @@ export function AdminRoute() {
   if (role !== 'admin' && role !== 'super_admin') {
     // In the student app this redirected to "/". Here "/" IS the admin area, so
     // redirecting would loop. Signed-in non-admins get a dead end instead.
-    return <NotAuthorized email={session.user.email ?? ''} />
+    return <NotAuthorized email={accountLabel(null, session.user.email)} />
   }
   return <Outlet />
 }

@@ -96,9 +96,49 @@ export function AudioUploadField({
         <NumberField label="Plays" value={value.playLimit} onChange={(playLimit) => onChange({ ...value, playLimit })} />
         <NumberField label="Preview (s)" value={value.previewSec} onChange={(previewSec) => onChange({ ...value, previewSec })} width="w-20" />
       </div>
+      {/* The exam rule is two listens per question, and half of it can live
+          inside the file — the official papers ship with the repeat already
+          recorded. Saying so here is what stops a self-repeating file being
+          played twice (four listens) or a clean one once. */}
+      <label className="flex cursor-pointer items-start gap-2 text-xs text-ink">
+        <input
+          type="checkbox"
+          checked={value.repeatsIncluded}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              repeatsIncluded: e.target.checked,
+              playLimit: e.target.checked ? 1 : 2,
+            })
+          }
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-brand)]"
+        />
+        <span>
+          <span className="font-bold">The file already contains the second play</span>
+          <span className="block text-ink-soft">
+            Tick this for the official papers, where each part is recorded twice with its own
+            announcements. Leave it off for a clean recording that Cefrly should play twice.
+          </span>
+        </span>
+      </label>
+      <ListensNote playLimit={value.playLimit} repeatsIncluded={value.repeatsIncluded} />
       {value.assetPath && <p className="tnum break-all text-[11px] text-ink-faint">{value.assetPath}</p>}
       {error && <p className="text-xs text-rose-700">{error}</p>}
     </div>
+  )
+}
+
+// Shows the number the exam actually cares about, so a wrong pairing is visible
+// at authoring time instead of at the validator (or, worse, in a student's exam).
+function ListensNote({ playLimit, repeatsIncluded }: { playLimit: number; repeatsIncluded: boolean }) {
+  const listens = (Number(playLimit) || 0) * (repeatsIncluded ? 2 : 1)
+  const ok = listens === 2
+  return (
+    <p className={`text-xs font-bold ${ok ? 'text-ink-soft' : 'text-rose-700'}`}>
+      {ok
+        ? 'Every question is heard twice — this matches the exam.'
+        : `Every question would be heard ${listens} time${listens === 1 ? '' : 's'}. The exam is twice.`}
+    </p>
   )
 }
 

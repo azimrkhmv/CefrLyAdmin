@@ -107,6 +107,11 @@ export interface AdminUserRow {
   name: string | null
   first_name: string | null
   last_name: string | null
+  father_name: string | null
+  /** "998XXXXXXXXX" — the login of every Telegram-created account. */
+  phone: string | null
+  /** getUser only: the account has shared its number with @CefrLy_bot. */
+  telegram_linked?: boolean
   role: UserRole
   plan: PlanId
   /** When a paid plan lapses; null = no expiry / free. */
@@ -140,6 +145,15 @@ export interface AdminUserRow {
   speaking_last_rating: number | null
   speaking_best_rating: number | null
   speaking_last_at: string | null
+  // --- Writing. Same /75 rating table and the same separate-table story as
+  // Speaking. OPTIONAL because the console and the edge function deploy
+  // independently: until admin-users v4 is live these simply aren't sent, and
+  // the column has to render anyway.
+  writing_count?: number
+  writing_last_band?: Band | null
+  writing_last_rating?: number | null
+  writing_best_rating?: number | null
+  writing_last_at?: string | null
 }
 
 /** One graded speaking attempt, with the whole analysis the student sees. */
@@ -213,12 +227,54 @@ export interface AdminRecheckRow {
   reviewed_at: string | null
 }
 
+/** A marked writing paper, as listed in one student's history. `result` and the
+ *  student's `answers` are deliberately NOT here — see getWritingAttempt. */
+export interface AdminWritingAttemptRow {
+  id: string
+  test_id: string
+  test_title: string
+  scope: 'full' | 'part'
+  task_type: 'task_1_1' | 'task_1_2' | 'part_2' | null
+  status: 'grading' | 'done' | 'failed'
+  error_message: string | null
+  raw_score: number | null
+  rating: number | null
+  band: Band | null
+  created_at: string
+  graded_at: string | null
+}
+
+/** One speaking grade the nightly sweep could not believe (migration 0025).
+ *  A detector, never a gate: resolving one records that a human looked, and
+ *  changes no mark. */
+export interface AdminGradeAlertRow {
+  /** Absent on `unswept` rows — those are the live view, not stored alerts,
+   *  so there is nothing to resolve yet. */
+  id?: string
+  attempt_id: string
+  kind: 'zero_with_speech' | 'band_swing' | 'no_profile' | 'stuck_grading' | string
+  detail: Record<string, unknown>
+  detected_at?: string
+  created_at?: string
+  resolved_at?: string | null
+  note?: string | null
+  user_id: string | null
+  user_name: string | null
+  test_title: string | null
+  attempt_scope: 'full' | 'part' | null
+  attempt_status: string | null
+  rating: number | null
+  band: Band | null
+}
+
 export interface AdminUserDetail {
   user: AdminUserRow
   onboarding: AdminUserOnboarding
   attempts: AdminAttemptRow[]
   /** Speaking history — absent on older function versions, hence optional. */
   speakingAttempts?: AdminSpeakingAttemptRow[]
+  /** Writing history — absent on older function versions, hence optional. */
+  writingAttempts?: AdminWritingAttemptRow[]
   /** Recheck complaints raised against those attempts. */
   rechecks?: AdminRecheckRow[]
 }
@@ -277,6 +333,35 @@ export function adminResolveRecheck(
   adminNote: string,
 ): Promise<{ ok: true }> {
   return invokeUsers({ action: 'resolveRecheck', recheckId, status, adminNote })
+}
+
+/** One marked writing paper in full: the student's script plus every
+ *  correction. Fetched on demand — the history list deliberately omits both. */
+export function adminGetWritingAttempt(attemptId: string): Promise<{
+  attempt: AdminWritingAttemptRow & {
+    answers: { taskId: string; taskType: string; taskLabel: string; text: string; wordCount: number }[]
+    result: Record<string, unknown> | null
+  }
+}> {
+  return invokeUsers({ action: 'getWritingAttempt', attemptId })
+}
+
+/** The speaking anomaly queue. `alerts` are the swept, resolvable rows;
+ *  `unswept` is what the live view sees that tonight's 02:15 sweep has not
+ *  recorded yet, so today's bad grade shows up today. */
+export function adminListGradeAlerts(
+  includeResolved = false,
+): Promise<{ alerts: AdminGradeAlertRow[]; unswept: AdminGradeAlertRow[] }> {
+  return invokeUsers({ action: 'listGradeAlerts', includeResolved })
+}
+
+/** Mark one alert seen, or reopen it. Never changes the student's mark. */
+export function adminResolveGradeAlert(
+  alertId: string,
+  resolved: boolean,
+  note?: string,
+): Promise<{ ok: true; alertId: string; resolved: boolean }> {
+  return invokeUsers({ action: 'resolveGradeAlert', alertId, resolved, note })
 }
 
 // --- admin-samples (Writing/Speaking model-answer library) -----------------

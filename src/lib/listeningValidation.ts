@@ -51,6 +51,24 @@ export function validateListeningTestContent(content: any, partNumber?: number):
     }
     if (typeof a.playLimit !== 'number' || a.playLimit < 1) err(`${where}: play limit must be at least 1.`)
     if (typeof a.previewSec !== 'number' || a.previewSec < 0) err(`${where}: preview seconds must be 0 or more.`)
+    if (a.repeatsIncluded !== undefined && typeof a.repeatsIncluded !== 'boolean') {
+      err(`${where}: repeatsIncluded must be true or false.`)
+    }
+    // THE EXAM RULE: every question is heard exactly twice. A recording delivers
+    // that either by being played twice, or by containing its own second play —
+    // so the check is on the product, not on playLimit alone. playLimit 2 on a
+    // self-repeating file is four listens; playLimit 1 on a clean one is a single
+    // listen. Both used to pass, and neither is the exam.
+    if (typeof a.playLimit === 'number' && a.playLimit >= 1) {
+      const listens = a.playLimit * (a.repeatsIncluded ? 2 : 1)
+      if (listens !== 2) {
+        err(
+          `${where}: every question must be heard exactly twice, but this is ${listens}. ` +
+            `Use playLimit 2 for a recording played twice, or playLimit 1 with ` +
+            `repeatsIncluded for a recording that already contains its second play.`,
+        )
+      }
+    }
   }
   if (content.audioMode === 'single') checkAudio(content.singleAudio, 'Section audio')
 

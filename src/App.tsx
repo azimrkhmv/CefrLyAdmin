@@ -32,6 +32,7 @@ const TestFormRouter = page(() => import('./pages/admin/TestFormRouter'), 'TestF
 const AdminSamplesPage = page(() => import('./pages/admin/AdminSamplesPage'), 'AdminSamplesPage')
 const SampleFormPage = page(() => import('./pages/admin/SampleFormPage'), 'SampleFormPage')
 const AdminUsersPage = page(() => import('./pages/admin/AdminUsersPage'), 'AdminUsersPage')
+const AdminAlertsPage = page(() => import('./pages/admin/AdminAlertsPage'), 'AdminAlertsPage')
 const AdminUserDetailPage = page(
   () => import('./pages/admin/AdminUserDetailPage'),
   'AdminUserDetailPage',
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/admin/samples/new" element={<SampleFormPage />} />
             <Route path="/admin/samples/:slug" element={<SampleFormPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route path="/admin/alerts" element={<AdminAlertsPage />} />
             <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
             {/* The directory absorbed the old admins-only page; keep the link alive. */}
             <Route path="/admin/admins" element={<Navigate to="/admin/users" replace />} />

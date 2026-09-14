@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { adminListUsers, type AdminUserRow } from '../../lib/adminApi'
+import type { Band } from '../../types/test'
 import { TabStrip } from '../../components/TabStrip'
+import { accountLabel } from '../../lib/phone'
 import {
   BandPill,
   PlanChip,
@@ -28,9 +30,12 @@ function matchesFilter(user: AdminUserRow, filter: RoleFilter) {
 function matchesSearch(user: AdminUserRow, q: string) {
   if (!q) return true
   const needle = q.toLowerCase()
+  const digits = q.replace(/\D/g, '')
   return (
+    (digits.length >= 2 && (user.phone ?? '').includes(digits)) ||
     user.email.toLowerCase().includes(needle) ||
-    (user.name ?? '').toLowerCase().includes(needle)
+    (user.name ?? '').toLowerCase().includes(needle) ||
+    (user.father_name ?? '').toLowerCase().includes(needle)
   )
 }
 
@@ -97,7 +102,7 @@ export function AdminUsersPage() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search email or name…"
+          placeholder="Search phone or name…"
           aria-label="Search users"
           className="w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand sm:w-64"
         />
@@ -118,7 +123,7 @@ export function AdminUsersPage() {
 
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-line bg-white shadow-card">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="border-b border-line text-[11px] font-bold uppercase tracking-[0.14em] text-ink-soft">
               <tr>
                 <th className="px-4 py-3">User</th>
@@ -128,6 +133,7 @@ export function AdminUsersPage() {
                 <th className="px-4 py-3">Last band</th>
                 <th className="px-4 py-3">Best</th>
                 <th className="px-4 py-3">Speaking</th>
+                <th className="px-4 py-3">Writing</th>
                 <th className="px-4 py-3">Last active</th>
                 <th className="px-4 py-3">Joined</th>
               </tr>
@@ -139,7 +145,9 @@ export function AdminUsersPage() {
                   <tr key={user.id} className="transition-colors hover:bg-page">
                     <td className="px-4 py-3">
                       <Link to={`/admin/users/${user.id}`} className="block">
-                        <span className="font-bold text-brand hover:underline">{user.email}</span>
+                        <span className="font-bold tabular-nums text-brand hover:underline">
+                          {accountLabel(user.phone, user.email)}
+                        </span>
                         <span className="mt-0.5 block text-xs text-ink-soft">
                           {name ?? 'No name yet'}
                         </span>
@@ -184,23 +192,22 @@ export function AdminUsersPage() {
                         <span className="text-ink-faint">—</span>
                       )}
                     </td>
-                    {/* Speaking is marked out of 75, not out of 35, so it gets
-                        its own column instead of muddling the two scales. */}
+                    {/* Speaking and Writing are marked out of 75, not out of 35,
+                        so they get their own columns instead of muddling the
+                        two scales. */}
                     <td className="px-4 py-3">
-                      {user.speaking_last_band ? (
-                        <div className="flex items-center gap-2">
-                          <BandPill band={user.speaking_last_band} />
-                          <span className="tabular-nums text-xs text-ink-soft">
-                            {user.speaking_last_rating}/75
-                          </span>
-                        </div>
-                      ) : user.speaking_count > 0 ? (
-                        <span className="text-xs text-ink-soft">
-                          {user.speaking_count} drill{user.speaking_count > 1 ? 's' : ''}
-                        </span>
-                      ) : (
-                        <span className="text-ink-faint">—</span>
-                      )}
+                      <RatedCell
+                        band={user.speaking_last_band}
+                        rating={user.speaking_last_rating}
+                        count={user.speaking_count}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <RatedCell
+                        band={user.writing_last_band ?? null}
+                        rating={user.writing_last_rating ?? null}
+                        count={user.writing_count ?? 0}
+                      />
                     </td>
                     <td className="px-4 py-3 text-ink-soft">
                       {relativeDay(user.last_attempt_at ?? user.last_sign_in_at)}
@@ -215,4 +222,34 @@ export function AdminUsersPage() {
       )}
     </div>
   )
+}
+
+/** Speaking and Writing share a scale (the official 0-75 rating table) and a
+ *  shape: a band once a FULL paper has been marked, otherwise a count of
+ *  drills, otherwise nothing. One cell, used by both columns. */
+function RatedCell({
+  band,
+  rating,
+  count,
+}: {
+  band: Band | null
+  rating: number | null
+  count: number
+}) {
+  if (band) {
+    return (
+      <div className="flex items-center gap-2">
+        <BandPill band={band} />
+        <span className="tabular-nums text-xs text-ink-soft">{rating}/75</span>
+      </div>
+    )
+  }
+  if (count > 0) {
+    return (
+      <span className="text-xs text-ink-soft">
+        {count} drill{count > 1 ? 's' : ''}
+      </span>
+    )
+  }
+  return <span className="text-ink-faint">—</span>
 }
