@@ -190,10 +190,16 @@ export function SampleFormPage() {
             placeholder={categoryMeta?.badgeHint ?? 'Task 1.1 · Informal email'}
           />
           <NumberField
-            label="Sort order"
+            label={categoryMeta?.skill === 'writing' ? 'Paper number (sort order)' : 'Sort order'}
             value={draft.sortOrder}
             onChange={(sortOrder) => set({ sortOrder })}
-            hint="Lower shows first within the category."
+            hint={
+              // The student app builds its Writing papers from these samples:
+              // Task 1.1 + Task 1.2 + Part 2 sharing a number = one mock.
+              categoryMeta?.skill === 'writing'
+                ? 'Also the Writing mock number: Task 1.1, Task 1.2 and Part 2 with the same number form one mock. Lower shows first.'
+                : 'Lower shows first within the category.'
+            }
           />
         </div>
         <TextField
